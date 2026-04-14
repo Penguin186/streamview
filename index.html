@@ -3,8 +3,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Live Streams</title>
+  <title>StreamView</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Favicon -->
+
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/727/727245.png">
 
   <style>
     body {
@@ -90,6 +94,13 @@
       padding: 20px;
       opacity: 0.7;
     }
+
+    footer {
+      text-align: center;
+      padding: 15px;
+      opacity: 0.5;
+      font-size: 14px;
+    }
   </style>
 
 </head>
@@ -106,7 +117,25 @@
   <div class="loader">Loading matches...</div>
 </div>
 
+<footer>
+  Powered by StreamView
+</footer>
+
 <script>
+const API_BASE = "https://streamed.pk/api";
+const proxy = "https://api.allorigins.win/raw?url=";
+
+// Helper to fetch via proxy (fixes CORS)
+async function fetchAPI(url) {
+  try {
+    const res = await fetch(proxy + encodeURIComponent(url));
+    return await res.json();
+  } catch (err) {
+    console.error("API fetch error:", err);
+    throw err;
+  }
+}
+
 const streamCache = {};
 
 async function loadMatches() {
@@ -114,12 +143,13 @@ async function loadMatches() {
   container.innerHTML = '<div class="loader">Loading matches...</div>';
 
   try {
-    const res = await fetch('https://streamed.pk/api/matches/live');
-    const matches = await res.json();
+    const matches = await fetchAPI(`${API_BASE}/matches/live`);
+
+    console.log("Matches loaded:", matches);
 
     container.innerHTML = "";
 
-    if (!matches.length) {
+    if (!matches || matches.length === 0) {
       container.innerHTML = '<div class="loader">No live matches right now.</div>';
       return;
     }
@@ -134,36 +164,36 @@ async function loadMatches() {
 
       const btn = document.createElement('button');
       btn.className = "watch";
-      btn.innerHTML = "▶ Watch";
+      btn.innerText = "Watch";
 
       const streamContainer = document.createElement('div');
 
       btn.onclick = async () => {
         btn.disabled = true;
-        btn.innerHTML = "Loading...";
+        btn.innerText = "Loading...";
 
         try {
           const cacheKey = match.id;
-
           let streams = streamCache[cacheKey];
 
           if (!streams) {
             const streamPromises = (match.sources || []).map(src =>
-              fetch(`https://streamed.pk/api/stream/${src.source}/${src.id}`)
-                .then(res => res.json())
+              fetchAPI(`${API_BASE}/stream/${src.source}/${src.id}`)
                 .catch(() => [])
             );
 
             const results = await Promise.all(streamPromises);
             streams = results.flat();
-
             streamCache[cacheKey] = streams;
           }
+
+          console.log("Streams:", streams);
 
           if (streams.length > 0) {
             streams.slice(0, 2).forEach(s => {
 
-              if (!s.embedUrl || !s.embedUrl.startsWith("http")) return;
+              // Only allow HTTPS embeds
+              if (!s.embedUrl || !s.embedUrl.startsWith("https://")) return;
 
               const streamTitle = document.createElement('div');
               streamTitle.className = "stream-title";
@@ -180,11 +210,12 @@ async function loadMatches() {
 
             btn.style.display = "none";
           } else {
-            btn.innerHTML = "No streams found";
+            btn.innerText = "No streams found";
           }
 
-        } catch (e) {
-          btn.innerHTML = "Error loading";
+        } catch (err) {
+          console.error("Stream load error:", err);
+          btn.innerText = "Error loading";
         }
       };
 
@@ -196,6 +227,7 @@ async function loadMatches() {
     });
 
   } catch (err) {
+    console.error("Match load error:", err);
     container.innerHTML = '<div class="loader">Error loading matches.</div>';
   }
 }
