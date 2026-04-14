@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>🔥 Live Streams</title>
+  <title>Live Streams</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
@@ -96,14 +96,14 @@
 
 <body>
 
-<h1>🔥 Live Streams</h1>
+<h1>Live Streams</h1>
 
 <div class="top-bar">
-  <button class="refresh-btn" onclick="loadMatches()">🔄 Refresh</button>
+  <button class="refresh-btn" onclick="loadMatches()">Refresh</button>
 </div>
 
 <div id="matches">
-  <div class="loader">⏳ Loading matches...</div>
+  <div class="loader">Loading matches...</div>
 </div>
 
 <script>
@@ -111,7 +111,7 @@ const streamCache = {};
 
 async function loadMatches() {
   const container = document.getElementById('matches');
-  container.innerHTML = '<div class="loader">⏳ Loading matches...</div>';
+  container.innerHTML = '<div class="loader">Loading matches...</div>';
 
   try {
     const res = await fetch('https://streamed.pk/api/matches/live');
@@ -140,7 +140,7 @@ async function loadMatches() {
 
       btn.onclick = async () => {
         btn.disabled = true;
-        btn.innerHTML = "⏳ Loading...";
+        btn.innerHTML = "Loading...";
 
         try {
           const cacheKey = match.id;
