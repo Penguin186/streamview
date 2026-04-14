@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Streams</title>
+  <style>
+    body {
+      background: #0f172a;
+      color: white;
+      font-family: Arial;
+      text-align: center;
+    }
+    iframe {
+      margin: 10px;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🔥 Live Streams</h1>
+<div id="streams"></div>
+
+<script>
+async function loadStreams() {
+  const container = document.getElementById('streams');
+  container.innerHTML = "Loading...";
+
+  try {
+    const res = await fetch('https://streamed.pk/api/matches/live');
+    const matches = await res.json();
+
+    container.innerHTML = "";
+
+    for (const match of matches) {
+      if (!match.sources) continue;
+
+      for (const src of match.sources) {
+        const streamRes = await fetch(
+          `https://streamed.pk/api/stream/${src.source}/${src.id}`
+        );
+        const streams = await streamRes.json();
+
+        streams.forEach(s => {
+          const iframe = document.createElement('iframe');
+          iframe.src = s.embedUrl;
+          iframe.width = "400";
+          iframe.height = "225";
+          container.appendChild(iframe);
+        });
+      }
+    }
+
+    if (container.innerHTML === "") {
+      container.innerHTML = "No live streams found.";
+    }
+
+  } catch (err) {
+    container.innerHTML = "Error loading streams.";
+    console.error(err);
+  }
+}
+
+loadStreams();
+</script>
+
+</body>
+</html>
