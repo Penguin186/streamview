@@ -1,256 +1,156 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>StreamView</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<link rel="icon" href="https://cdn-icons-png.flaticon.com/512/727/727245.png">
-
 <style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #0f172a;
-  color: white;
-}
-
-h1 {
-  text-align: center;
-  padding: 18px;
-}
-
-#matches {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 14px;
-  padding: 20px;
-}
-
-.card {
-  background: #1e293b;
-  padding: 14px;
-  border-radius: 12px;
-}
-
-.title {
-  font-size: 15px;
-  margin-bottom: 10px;
-}
-
-button {
-  background: #22c55e;
-  border: none;
-  padding: 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-  width: 100%;
-}
-
-.loader {
-  text-align: center;
-  opacity: 0.7;
-}
-
-/* MODAL */
-#modal {
-  position: fixed;
-  inset: 0;
-  background: black;
-  display: none;
-  flex-direction: column;
-  z-index: 9999;
-}
-
-#topbar {
-  display: flex;
-  justify-content: space-between;
-  padding: 10px;
-  background: #111;
-}
-
-#close {
-  background: red;
-  border: none;
-  color: white;
-  padding: 6px 10px;
-  cursor: pointer;
-}
-
-#frame {
-  flex: 1;
-  width: 100%;
-  border: none;
-}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#0f172a;color:#f1f5f9;min-height:100vh}
+#header{padding:16px 20px;border-bottom:1px solid #1e293b;display:flex;align-items:center;justify-content:space-between}
+#header h1{font-size:18px;font-weight:600;display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:#e24b4a;display:inline-block;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+#refresh-btn{font-size:13px;background:none;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:8px;cursor:pointer}
+#refresh-btn:hover{background:#1e293b}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;padding:20px}
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.card-sport{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em}
+.card-title{font-size:14px;font-weight:500;color:#f1f5f9;line-height:1.4}
+.live-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;background:#450a0a;color:#fca5a5;padding:3px 9px;border-radius:20px;width:fit-content}
+.watch-btn{margin-top:4px;background:#22c55e;border:none;color:#fff;font-size:13px;font-weight:600;padding:9px;border-radius:8px;cursor:pointer;transition:background .15s}
+.watch-btn:hover{background:#16a34a}
+.watch-btn:disabled{background:#334155;color:#64748b;cursor:not-allowed}
+.status{text-align:center;padding:3rem;color:#64748b;font-size:14px;grid-column:1/-1}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid #334155;border-top-color:#94a3b8;border-radius:50%;animation:spin .8s linear infinite;margin-right:8px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+#player-section{display:none;padding:0 20px 20px}
+#player-wrap{border-radius:12px;overflow:hidden;border:1px solid #334155}
+#player-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1e293b;border-bottom:1px solid #334155}
+#player-title{font-size:14px;font-weight:500;color:#f1f5f9}
+#close-btn{font-size:12px;background:#450a0a;color:#fca5a5;border:none;border-radius:6px;padding:5px 12px;cursor:pointer}
+#player-frame{width:100%;height:420px;border:none;background:#000;display:block}
+#streams-bar{display:flex;gap:6px;padding:10px 14px;background:#1e293b;border-top:1px solid #334155;flex-wrap:wrap}
+.stream-btn{font-size:12px;padding:4px 12px;border-radius:20px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer}
+.stream-btn:hover{background:#334155}
+.stream-btn.active{background:#166534;color:#86efac;border-color:transparent}
 </style>
 </head>
-
 <body>
 
-<h1>Live Streams</h1>
-
-<div id="matches">
-  <div class="loader">Loading matches...</div>
+<div id="header">
+  <h1><span class="dot"></span> StreamView</h1>
+  <button id="refresh-btn" onclick="loadMatches()">↻ Refresh</button>
 </div>
 
-<!-- PLAYER -->
-<div id="modal">
-  <div id="topbar">
-    <div id="title">Playing</div>
-    <button id="close">Close</button>
+<div id="player-section">
+  <div id="player-wrap">
+    <div id="player-bar">
+      <span id="player-title">Now playing</span>
+      <button id="close-btn" onclick="closePlayer()">✕ Close</button>
+    </div>
+    <iframe id="player-frame" allow="autoplay; fullscreen" allowfullscreen></iframe>
+    <div id="streams-bar"></div>
   </div>
-  <iframe id="frame" allow="autoplay; fullscreen"></iframe>
+</div>
+
+<div id="grid">
+  <div class="status"><span class="spinner"></span>Loading matches…</div>
 </div>
 
 <script>
-const API_BASE = "https://streamed.pk/api";
+const PROXY = "https://green-tree-e168.poetic-lice.workers.dev";
 
-/* ---------------- FETCH ---------------- */
-async function fetchAPI(url) {
-  const res = await fetch(url);
-  return res.json();
+async function api(path) {
+  const r = await fetch(PROXY + path);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
 }
 
-/* ---------------- LOAD MATCHES ---------------- */
+function sportLabel(cat) {
+  const map = {football:"Football",soccer:"Soccer",basketball:"Basketball",tennis:"Tennis",cricket:"Cricket",rugby:"Rugby",hockey:"Hockey",baseball:"Baseball",mma:"MMA",boxing:"Boxing",golf:"Golf",f1:"Formula 1",motorsport:"Motorsport"};
+  return map[(cat||"").toLowerCase()] || cat || "Sport";
+}
+
 async function loadMatches() {
-  const container = document.getElementById("matches");
-  container.innerHTML = '<div class="loader">Loading matches...</div>';
-
+  const grid = document.getElementById("grid");
+  grid.innerHTML = '<div class="status"><span class="spinner"></span>Loading matches…</div>';
   try {
-    const matches = await fetchAPI(`${API_BASE}/matches/live`);
-    container.innerHTML = "";
-
+    const matches = await api("/api/matches/live");
     if (!matches?.length) {
-      container.innerHTML = '<div class="loader">No live matches</div>';
+      grid.innerHTML = '<div class="status">No live matches right now</div>';
       return;
     }
-
-    matches.forEach(match => {
+    grid.innerHTML = "";
+    matches.forEach(m => {
       const card = document.createElement("div");
       card.className = "card";
-
-      const title = document.createElement("div");
-      title.className = "title";
-      title.textContent = match.title || "Live Match";
-
-      const btn = document.createElement("button");
-      btn.textContent = "Watch";
-
-      btn.onclick = async () => {
-        btn.disabled = true;
-        btn.textContent = "Loading...";
-
-        try {
-          const results = await Promise.all(
-            (match.sources || []).map(src =>
-              fetchAPI(`${API_BASE}/stream/${src.source}/${src.id}`).catch(() => [])
-            )
-          );
-
-          let streams = results.flat().filter(s => s?.embedUrl);
-
-          if (!streams.length) {
-            btn.textContent = "No streams";
-            return;
-          }
-
-          streams = rankStreams(streams);
-
-          const working = await tryStreams(streams);
-
-          if (!working) {
-            btn.textContent = "No working stream";
-            return;
-          }
-
-          openPlayer(working, match.title);
-
-        } catch (err) {
-          console.error(err);
-          btn.textContent = "Error";
-        }
-      };
-
-      card.appendChild(title);
-      card.appendChild(btn);
-      container.appendChild(card);
+      card.innerHTML = `
+        <div class="card-sport">${sportLabel(m.category || m.sport)}</div>
+        <div class="card-title">${m.title || "Live Match"}</div>
+        <div class="live-badge"><span style="width:6px;height:6px;border-radius:50%;background:#e24b4a;display:inline-block"></span>Live</div>
+        <button class="watch-btn" id="btn-${m.id}">Watch</button>`;
+      card.querySelector(".watch-btn").onclick = () => watchMatch(m);
+      grid.appendChild(card);
     });
-
-  } catch (err) {
-    console.error(err);
-    container.innerHTML = '<div class="loader">Error loading matches</div>';
+  } catch(e) {
+    grid.innerHTML = '<div class="status">Could not load matches — proxy may be warming up, try refreshing</div>';
   }
 }
 
-/* ---------------- STREAM RANKING ---------------- */
-function rankStreams(streams) {
-  return streams.sort((a, b) => {
-    return (b.hd === true) - (a.hd === true);
-  });
+async function watchMatch(m) {
+  const btn = document.getElementById("btn-" + m.id);
+  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
+  try {
+    const sources = m.sources || [];
+    if (!sources.length) {
+      if (btn) { btn.disabled = false; btn.textContent = "No sources"; }
+      return;
+    }
+    const results = await Promise.all(
+      sources.map(s => api(`/api/stream/${s.source}/${s.id}`).catch(() => []))
+    );
+    const streams = results.flat().filter(s => s?.embedUrl);
+    if (!streams.length) {
+      if (btn) { btn.disabled = false; btn.textContent = "No streams found"; }
+      return;
+    }
+    streams.sort((a, b) => (b.hd === true) - (a.hd === true));
+    openPlayer(m.title, streams, 0);
+    if (btn) { btn.disabled = false; btn.textContent = "Watch"; }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = "Error — retry"; }
+  }
 }
 
-/* ---------------- STREAM TEST ---------------- */
-function testEmbed(url) {
-  return new Promise(resolve => {
-    const iframe = document.createElement("iframe");
-    iframe.style.display = "none";
-    iframe.src = url;
-
-    let done = false;
-
-    const timeout = setTimeout(() => {
-      if (!done) {
-        done = true;
-        resolve(false);
-      }
-    }, 4000);
-
-    iframe.onload = () => {
-      if (!done) {
-        done = true;
-        clearTimeout(timeout);
-        resolve(true);
-      }
+function openPlayer(title, streams, idx) {
+  const section = document.getElementById("player-section");
+  const frame = document.getElementById("player-frame");
+  const bar = document.getElementById("streams-bar");
+  document.getElementById("player-title").textContent = title || "Now playing";
+  frame.src = streams[idx].embedUrl;
+  section.style.display = "block";
+  bar.innerHTML = "";
+  streams.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.className = "stream-btn" + (i === idx ? " active" : "");
+    b.textContent = (s.hd ? "HD " : "") + "Stream " + (i + 1);
+    b.onclick = () => {
+      frame.src = s.embedUrl;
+      bar.querySelectorAll(".stream-btn").forEach((x, j) => x.className = "stream-btn" + (j === i ? " active" : ""));
     };
-
-    document.body.appendChild(iframe);
+    bar.appendChild(b);
   });
+  section.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-/* ---------------- TRY STREAMS ---------------- */
-async function tryStreams(streams) {
-  for (const s of streams) {
-    if (!s.embedUrl) continue;
-
-    const ok = await testEmbed(s.embedUrl);
-    if (ok) return s.embedUrl;
-  }
-  return null;
+function closePlayer() {
+  document.getElementById("player-section").style.display = "none";
+  document.getElementById("player-frame").src = "";
 }
 
-/* ---------------- PLAYER ---------------- */
-function openPlayer(url, title) {
-  const modal = document.getElementById("modal");
-  const frame = document.getElementById("frame");
-  const label = document.getElementById("title");
-
-  label.textContent = title || "Playing";
-  frame.src = url;
-
-  modal.style.display = "flex";
-}
-
-/* ---------------- CLOSE ---------------- */
-document.getElementById("close").onclick = () => {
-  document.getElementById("modal").style.display = "none";
-  document.getElementById("frame").src = "";
-};
-
-/* ---------------- INIT ---------------- */
 loadMatches();
 setInterval(loadMatches, 60000);
 </script>
-
 </body>
 </html>
