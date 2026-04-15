@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>StreamView Hybrid</title>
+<title>StreamView</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/727/727245.png">
-<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
 <style>
 body {
@@ -18,19 +17,19 @@ body {
 
 h1 {
   text-align: center;
-  padding: 20px;
+  padding: 18px;
 }
 
 #matches {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 15px;
+  gap: 14px;
   padding: 20px;
 }
 
 .card {
   background: #1e293b;
-  padding: 15px;
+  padding: 14px;
   border-radius: 12px;
 }
 
@@ -46,9 +45,15 @@ button {
   border-radius: 8px;
   cursor: pointer;
   font-weight: bold;
+  width: 100%;
 }
 
-/* modal */
+.loader {
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* MODAL */
 #modal {
   position: fixed;
   inset: 0;
@@ -73,163 +78,176 @@ button {
   cursor: pointer;
 }
 
-#video, #frame {
+#frame {
   flex: 1;
   width: 100%;
   border: none;
-}
-
-.hidden {
-  display: none;
 }
 </style>
 </head>
 
 <body>
 
-<h1>Live Streams (Hybrid Player)</h1>
+<h1>Live Streams</h1>
 
-<div id="matches"></div>
+<div id="matches">
+  <div class="loader">Loading matches...</div>
+</div>
 
-<!-- MODAL -->
+<!-- PLAYER -->
 <div id="modal">
   <div id="topbar">
     <div id="title">Playing</div>
     <button id="close">Close</button>
   </div>
-
-  <video id="video" controls autoplay class="hidden"></video>
-  <iframe id="frame" class="hidden" allow="autoplay; fullscreen"></iframe>
+  <iframe id="frame" allow="autoplay; fullscreen"></iframe>
 </div>
 
 <script>
 const API_BASE = "https://streamed.pk/api";
 
+/* ---------------- FETCH ---------------- */
 async function fetchAPI(url) {
   const res = await fetch(url);
   return res.json();
 }
 
-/* ---------- LOAD MATCHES ---------- */
+/* ---------------- LOAD MATCHES ---------------- */
 async function loadMatches() {
   const container = document.getElementById("matches");
-  container.innerHTML = "Loading...";
+  container.innerHTML = '<div class="loader">Loading matches...</div>';
 
-  const matches = await fetchAPI(`${API_BASE}/matches/live`);
-  container.innerHTML = "";
+  try {
+    const matches = await fetchAPI(`${API_BASE}/matches/live`);
+    container.innerHTML = "";
 
-  matches.forEach(match => {
-    const card = document.createElement("div");
-    card.className = "card";
+    if (!matches?.length) {
+      container.innerHTML = '<div class="loader">No live matches</div>';
+      return;
+    }
 
-    const title = document.createElement("div");
-    title.className = "title";
-    title.textContent = match.title || "Live Match";
+    matches.forEach(match => {
+      const card = document.createElement("div");
+      card.className = "card";
 
-    const btn = document.createElement("button");
-    btn.textContent = "Watch";
+      const title = document.createElement("div");
+      title.className = "title";
+      title.textContent = match.title || "Live Match";
 
-    btn.onclick = async () => {
-      btn.disabled = true;
-      btn.textContent = "Loading...";
+      const btn = document.createElement("button");
+      btn.textContent = "Watch";
 
-      try {
-        const streams = await Promise.all(
-          (match.sources || []).map(src =>
-            fetchAPI(`${API_BASE}/stream/${src.source}/${src.id}`).catch(() => [])
-          )
-        );
+      btn.onclick = async () => {
+        btn.disabled = true;
+        btn.textContent = "Loading...";
 
-        const flat = streams.flat().filter(s => s?.embedUrl);
+        try {
+          const results = await Promise.all(
+            (match.sources || []).map(src =>
+              fetchAPI(`${API_BASE}/stream/${src.source}/${src.id}`).catch(() => [])
+            )
+          );
 
-        if (!flat.length) {
-          btn.textContent = "No streams";
-          return;
+          let streams = results.flat().filter(s => s?.embedUrl);
+
+          if (!streams.length) {
+            btn.textContent = "No streams";
+            return;
+          }
+
+          streams = rankStreams(streams);
+
+          const working = await tryStreams(streams);
+
+          if (!working) {
+            btn.textContent = "No working stream";
+            return;
+          }
+
+          openPlayer(working, match.title);
+
+        } catch (err) {
+          console.error(err);
+          btn.textContent = "Error";
         }
+      };
 
-        openStream(flat[0].embedUrl, match.title);
+      card.appendChild(title);
+      card.appendChild(btn);
+      container.appendChild(card);
+    });
 
-      } catch (e) {
-        console.error(e);
-        btn.textContent = "Error";
-      }
-    };
+  } catch (err) {
+    console.error(err);
+    container.innerHTML = '<div class="loader">Error loading matches</div>';
+  }
+}
 
-    card.appendChild(title);
-    card.appendChild(btn);
-    container.appendChild(card);
+/* ---------------- STREAM RANKING ---------------- */
+function rankStreams(streams) {
+  return streams.sort((a, b) => {
+    return (b.hd === true) - (a.hd === true);
   });
 }
 
-/* ---------- STREAM DETECTION ---------- */
-function isHLS(url) {
-  return typeof url === "string" && url.includes(".m3u8");
+/* ---------------- STREAM TEST ---------------- */
+function testEmbed(url) {
+  return new Promise(resolve => {
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = url;
+
+    let done = false;
+
+    const timeout = setTimeout(() => {
+      if (!done) {
+        done = true;
+        resolve(false);
+      }
+    }, 4000);
+
+    iframe.onload = () => {
+      if (!done) {
+        done = true;
+        clearTimeout(timeout);
+        resolve(true);
+      }
+    };
+
+    document.body.appendChild(iframe);
+  });
 }
 
-/* ---------- PLAYER ---------- */
-function openStream(url, title) {
+/* ---------------- TRY STREAMS ---------------- */
+async function tryStreams(streams) {
+  for (const s of streams) {
+    if (!s.embedUrl) continue;
+
+    const ok = await testEmbed(s.embedUrl);
+    if (ok) return s.embedUrl;
+  }
+  return null;
+}
+
+/* ---------------- PLAYER ---------------- */
+function openPlayer(url, title) {
   const modal = document.getElementById("modal");
-  const video = document.getElementById("video");
   const frame = document.getElementById("frame");
   const label = document.getElementById("title");
 
   label.textContent = title || "Playing";
-
-  video.classList.add("hidden");
-  frame.classList.add("hidden");
+  frame.src = url;
 
   modal.style.display = "flex";
-
-  // CLEANUP
-  video.pause();
-  video.src = "";
-  frame.src = "";
-
-  if (window.hls) {
-    window.hls.destroy();
-  }
-
-  /* ---------- HLS MODE ---------- */
-  if (isHLS(url)) {
-    video.classList.remove("hidden");
-
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        lowLatencyMode: true
-      });
-
-      window.hls = hls;
-      hls.loadSource(url);
-      hls.attachMedia(video);
-    } else {
-      video.src = url;
-    }
-
-    video.play().catch(() => {});
-    return;
-  }
-
-  /* ---------- EMBED MODE ---------- */
-  frame.classList.remove("hidden");
-  frame.src = url;
 }
 
-/* ---------- CLOSE ---------- */
+/* ---------------- CLOSE ---------------- */
 document.getElementById("close").onclick = () => {
   document.getElementById("modal").style.display = "none";
-
-  const video = document.getElementById("video");
-  const frame = document.getElementById("frame");
-
-  video.pause();
-  video.src = "";
-  frame.src = "";
-
-  if (window.hls) {
-    window.hls.destroy();
-  }
+  document.getElementById("frame").src = "";
 };
 
+/* ---------------- INIT ---------------- */
 loadMatches();
 setInterval(loadMatches, 60000);
 </script>
