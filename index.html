@@ -1,238 +1,235 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>StreamView</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<title>StreamView Hybrid</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Favicon -->
+<link rel="icon" href="https://cdn-icons-png.flaticon.com/512/727/727245.png">
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
-  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/727/727245.png">
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: white;
+}
 
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #0f172a;
-      color: white;
-    }
+h1 {
+  text-align: center;
+  padding: 20px;
+}
 
-    h1 {
-      text-align: center;
-      padding: 20px;
-    }
+#matches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 15px;
+  padding: 20px;
+}
 
-    .top-bar {
-      text-align: center;
-      margin-bottom: 10px;
-    }
+.card {
+  background: #1e293b;
+  padding: 15px;
+  border-radius: 12px;
+}
 
-    .refresh-btn {
-      background: #38bdf8;
-      border: none;
-      padding: 8px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-    }
+.title {
+  font-size: 15px;
+  margin-bottom: 10px;
+}
 
-    .refresh-btn:hover {
-      background: #0ea5e9;
-    }
+button {
+  background: #22c55e;
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
 
-    #matches {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 20px;
-      padding: 20px;
-    }
+/* modal */
+#modal {
+  position: fixed;
+  inset: 0;
+  background: black;
+  display: none;
+  flex-direction: column;
+  z-index: 9999;
+}
 
-    .card {
-      background: #1e293b;
-      padding: 15px;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
-    }
+#topbar {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  background: #111;
+}
 
-    .title {
-      font-size: 18px;
-      margin-bottom: 10px;
-    }
+#close {
+  background: red;
+  border: none;
+  color: white;
+  padding: 6px 10px;
+  cursor: pointer;
+}
 
-    button.watch {
-      background: #22c55e;
-      border: none;
-      padding: 10px 15px;
-      color: black;
-      font-weight: bold;
-      border-radius: 8px;
-      cursor: pointer;
-    }
+#video, #frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+}
 
-    button.watch:hover {
-      background: #16a34a;
-    }
-
-    iframe {
-      width: 100%;
-      height: 220px;
-      margin-top: 8px;
-      border-radius: 8px;
-      border: none;
-    }
-
-    .stream-title {
-      margin-top: 10px;
-      font-size: 14px;
-      font-weight: bold;
-      opacity: 0.8;
-    }
-
-    .loader {
-      text-align: center;
-      padding: 20px;
-      opacity: 0.7;
-    }
-
-    footer {
-      text-align: center;
-      padding: 15px;
-      opacity: 0.5;
-      font-size: 14px;
-    }
-  </style>
-
+.hidden {
+  display: none;
+}
+</style>
 </head>
 
 <body>
 
-<h1>Live Streams</h1>
+<h1>Live Streams (Hybrid Player)</h1>
 
-<div class="top-bar">
-  <button class="refresh-btn" onclick="loadMatches()">Refresh</button>
+<div id="matches"></div>
+
+<!-- MODAL -->
+<div id="modal">
+  <div id="topbar">
+    <div id="title">Playing</div>
+    <button id="close">Close</button>
+  </div>
+
+  <video id="video" controls autoplay class="hidden"></video>
+  <iframe id="frame" class="hidden" allow="autoplay; fullscreen"></iframe>
 </div>
-
-<div id="matches">
-  <div class="loader">Loading matches...</div>
-</div>
-
-<footer>
-  Powered by StreamView
-</footer>
 
 <script>
 const API_BASE = "https://streamed.pk/api";
-const proxy = "https://api.allorigins.win/raw?url=";
 
-// Helper to fetch via proxy (fixes CORS)
 async function fetchAPI(url) {
-  try {
-    const res = await fetch(proxy + encodeURIComponent(url));
-    return await res.json();
-  } catch (err) {
-    console.error("API fetch error:", err);
-    throw err;
-  }
+  const res = await fetch(url);
+  return res.json();
 }
 
-const streamCache = {};
-
+/* ---------- LOAD MATCHES ---------- */
 async function loadMatches() {
-  const container = document.getElementById('matches');
-  container.innerHTML = '<div class="loader">Loading matches...</div>';
+  const container = document.getElementById("matches");
+  container.innerHTML = "Loading...";
 
-  try {
-    const matches = await fetchAPI(`${API_BASE}/matches/live`);
+  const matches = await fetchAPI(`${API_BASE}/matches/live`);
+  container.innerHTML = "";
 
-    console.log("Matches loaded:", matches);
+  matches.forEach(match => {
+    const card = document.createElement("div");
+    card.className = "card";
 
-    container.innerHTML = "";
+    const title = document.createElement("div");
+    title.className = "title";
+    title.textContent = match.title || "Live Match";
 
-    if (!matches || matches.length === 0) {
-      container.innerHTML = '<div class="loader">No live matches right now.</div>';
-      return;
+    const btn = document.createElement("button");
+    btn.textContent = "Watch";
+
+    btn.onclick = async () => {
+      btn.disabled = true;
+      btn.textContent = "Loading...";
+
+      try {
+        const streams = await Promise.all(
+          (match.sources || []).map(src =>
+            fetchAPI(`${API_BASE}/stream/${src.source}/${src.id}`).catch(() => [])
+          )
+        );
+
+        const flat = streams.flat().filter(s => s?.embedUrl);
+
+        if (!flat.length) {
+          btn.textContent = "No streams";
+          return;
+        }
+
+        openStream(flat[0].embedUrl, match.title);
+
+      } catch (e) {
+        console.error(e);
+        btn.textContent = "Error";
+      }
+    };
+
+    card.appendChild(title);
+    card.appendChild(btn);
+    container.appendChild(card);
+  });
+}
+
+/* ---------- STREAM DETECTION ---------- */
+function isHLS(url) {
+  return typeof url === "string" && url.includes(".m3u8");
+}
+
+/* ---------- PLAYER ---------- */
+function openStream(url, title) {
+  const modal = document.getElementById("modal");
+  const video = document.getElementById("video");
+  const frame = document.getElementById("frame");
+  const label = document.getElementById("title");
+
+  label.textContent = title || "Playing";
+
+  video.classList.add("hidden");
+  frame.classList.add("hidden");
+
+  modal.style.display = "flex";
+
+  // CLEANUP
+  video.pause();
+  video.src = "";
+  frame.src = "";
+
+  if (window.hls) {
+    window.hls.destroy();
+  }
+
+  /* ---------- HLS MODE ---------- */
+  if (isHLS(url)) {
+    video.classList.remove("hidden");
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        lowLatencyMode: true
+      });
+
+      window.hls = hls;
+      hls.loadSource(url);
+      hls.attachMedia(video);
+    } else {
+      video.src = url;
     }
 
-    matches.forEach(match => {
-      const card = document.createElement('div');
-      card.className = "card";
-
-      const title = document.createElement('div');
-      title.className = "title";
-      title.innerText = `${match.title || "Live Match"} (${match.status || "LIVE"})`;
-
-      const btn = document.createElement('button');
-      btn.className = "watch";
-      btn.innerText = "Watch";
-
-      const streamContainer = document.createElement('div');
-
-      btn.onclick = async () => {
-        btn.disabled = true;
-        btn.innerText = "Loading...";
-
-        try {
-          const cacheKey = match.id;
-          let streams = streamCache[cacheKey];
-
-          if (!streams) {
-            const streamPromises = (match.sources || []).map(src =>
-              fetchAPI(`${API_BASE}/stream/${src.source}/${src.id}`)
-                .catch(() => [])
-            );
-
-            const results = await Promise.all(streamPromises);
-            streams = results.flat();
-            streamCache[cacheKey] = streams;
-          }
-
-          console.log("Streams:", streams);
-
-          if (streams.length > 0) {
-            streams.slice(0, 2).forEach(s => {
-
-              // Only allow HTTPS embeds
-              if (!s.embedUrl || !s.embedUrl.startsWith("https://")) return;
-
-              const streamTitle = document.createElement('div');
-              streamTitle.className = "stream-title";
-              streamTitle.innerText = s.name || s.title || "Stream";
-
-              const iframe = document.createElement('iframe');
-              iframe.src = s.embedUrl;
-              iframe.loading = "lazy";
-              iframe.allowFullscreen = true;
-
-              streamContainer.appendChild(streamTitle);
-              streamContainer.appendChild(iframe);
-            });
-
-            btn.style.display = "none";
-          } else {
-            btn.innerText = "No streams found";
-          }
-
-        } catch (err) {
-          console.error("Stream load error:", err);
-          btn.innerText = "Error loading";
-        }
-      };
-
-      card.appendChild(title);
-      card.appendChild(btn);
-      card.appendChild(streamContainer);
-
-      container.appendChild(card);
-    });
-
-  } catch (err) {
-    console.error("Match load error:", err);
-    container.innerHTML = '<div class="loader">Error loading matches.</div>';
+    video.play().catch(() => {});
+    return;
   }
+
+  /* ---------- EMBED MODE ---------- */
+  frame.classList.remove("hidden");
+  frame.src = url;
 }
 
-// Initial load + auto refresh
+/* ---------- CLOSE ---------- */
+document.getElementById("close").onclick = () => {
+  document.getElementById("modal").style.display = "none";
+
+  const video = document.getElementById("video");
+  const frame = document.getElementById("frame");
+
+  video.pause();
+  video.src = "";
+  frame.src = "";
+
+  if (window.hls) {
+    window.hls.destroy();
+  }
+};
+
 loadMatches();
 setInterval(loadMatches, 60000);
 </script>
